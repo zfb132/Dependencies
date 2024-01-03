@@ -223,7 +223,7 @@ namespace Dependencies
     /// <summary>
     /// Deprendency Tree custom node. It's DataContext is a DependencyNodeContext struct
     /// </summary>
-    public class ModuleTreeViewItem : TreeViewItem, INotifyPropertyChanged
+    public partial class ModuleTreeViewItem : TreeViewItem, INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;
 
