@@ -1,3 +1,5 @@
+param([string]$Configuration, [string]$Platform, [string]$Version)
+
 function Get-PeviewBinary {
   param(
     [String] $BuildVersion,
@@ -11,28 +13,16 @@ function Get-PeviewBinary {
   New-Item -ItemType Directory -Force -Path "$($env:TEMP)/tmp";
   Set-Location "$($env:TEMP)/tmp"
 
-  $apiUrl = 'https://ci.appveyor.com/api';
-  $headers = @{
-    "Content-type" = "application/json"
-  };
-  $accountName = 'processhacker';
-  $projectName = 'processhacker';
-  $artifactFileName = "processhacker-build-bin.zip";
-
-  # get project with last build details
-  $build = Invoke-RestMethod -Method Get -Uri "$apiUrl/projects/$accountName/$projectName/build/$BuildVersion" -Headers $headers
-
-  # processhacker builds have a single job
-  # get the job id
-  $jobId = $build.build.jobs[0].jobId;
+  $apiUrl = "https://github.com/winsiderss/si-builds/releases/download/$BuildVersion";
+  $artifactFileName = "systeminformer-$BuildVersion-bin.zip";
 
   # get the zip file job artifacts
-  Invoke-WebRequest -Uri "$apiUrl/buildjobs/$jobId/artifacts/$artifactFileName" -OutFile "./$artifactFileName"
+  Invoke-WebRequest -Uri "$apiUrl/$artifactFileName" -OutFile "./$artifactFileName"
 
   # get the platform subfolder within the artifact zip file
-  $pePlatform = "32bit"
+  $pePlatform = "i386"
   if ($env:platform -eq "x64") {
-    $pePlatform = "64bit"
+    $pePlatform = "amd64"
   }
 
   # check the expected hash before extracing binaries
@@ -96,8 +86,8 @@ function Get-DependenciesDeps {
   )
 
   # Download external dependencies like peview
-  $PeBuildVersion = "3.0.2995";
-  $PeviewBuildHash = "2d6e76f6ff752cfbd595544ae0f967843e0fa2402700418d933d4d5d3ce2b99b";
+  $PeBuildVersion = "3.0.7422";
+  $PeviewBuildHash = "F6A8C347847C97294A3141A0115CA1E883109E639663C6F716DC90F03E2DC78D";
   Get-PeviewBinary -BuildVersion $PeBuildVersion -Hash $PeviewBuildHash;
   if (-not $env:PEVIEW_PATH)
   {
@@ -169,9 +159,13 @@ function Run-RegressTests {
   Write-Host "Tests done."
 }
 
-$BINPATH="C:/projects/dependencies/bin/$($env:CONFIGURATION)$($env:platform)";
-$DepsFolder="C:/projects/dependencies/deps/$($env:CONFIGURATION)$($env:platform)";
-$OutputFolder="C:/projects/dependencies/output";
+# Setting up environment variables
+$env:CONFIGURATION = $Configuration;
+$env:platform = $Platform;
+
+$BINPATH="$PSScriptRoot/bin/$($env:CONFIGURATION)$($env:platform)";
+$DepsFolder="$PSScriptRoot/deps/$($env:CONFIGURATION)$($env:platform)";
+$OutputFolder="$PSScriptRoot/output";
 
 # Creating output directory
 New-Item -ItemType Directory -Force -Path $DepsFolder;
@@ -187,11 +181,11 @@ Run-RegressTests -Binpath $BINPATH;
 
 Write-Host "Zipping everything"
 if ($($env:CONFIGURATION) -eq "Debug") {
-	&7z.exe a "$($OutputFolder)/Dependencies_$($env:platform)_$($env:CONFIGURATION).zip" $BINPATH/tests $BINPATH/*.dll $BINPATH/*.exe $BINPATH/*.config $BINPATH/*.pdb $DepsFolder/* $env:PEVIEW_PATH;
+	&7z.exe a "$($OutputFolder)/Dependencies_$($Version)_$($env:platform)_$($env:CONFIGURATION).zip" $BINPATH/tests $BINPATH/*.dll $BINPATH/*.exe $BINPATH/*.config $BINPATH/*.pdb $DepsFolder/* $env:PEVIEW_PATH;
 }
 else {
-	&7z.exe a "$($OutputFolder)/Dependencies_$($env:platform)_$($env:CONFIGURATION).zip" $BINPATH/*.dll $BINPATH/*.exe $BINPATH/*.config $BINPATH/*.pdb $DepsFolder/* $env:PEVIEW_PATH;
-	&7z.exe a "$($OutputFolder)/Dependencies_$($env:platform)_$($env:CONFIGURATION)_(without peview.exe).zip" $BINPATH/*.dll $BINPATH/*.exe $BINPATH/*.config $BINPATH/*.pdb $DepsFolder/*;
+	&7z.exe a "$($OutputFolder)/Dependencies_$($Version)_$($env:platform)_$($env:CONFIGURATION).zip" $BINPATH/*.dll $BINPATH/*.exe $BINPATH/*.config $BINPATH/*.pdb $DepsFolder/* $env:PEVIEW_PATH;
+	&7z.exe a "$($OutputFolder)/Dependencies_$($Version)_$($env:platform)_$($env:CONFIGURATION)_(without peview.exe).zip" $BINPATH/*.dll $BINPATH/*.exe $BINPATH/*.config $BINPATH/*.pdb $DepsFolder/*;
 }
 
 # APPX packaging
@@ -200,11 +194,11 @@ else {
   $signtool = "${env:ProgramFiles(x86)}\Windows Kits\10\App Certification Kit\signtool.exe";
 
   # Copy assets to build folder
-  Copy-Item "C:/projects/dependencies/DependenciesAppx/Assets" -Destination "C:/projects/dependencies/bin/Appx_$($env:CONFIGURATION)$($env:platform)" -Force -Recurse
+  Copy-Item "$PSScriptRoot/DependenciesAppx/Assets" -Destination "$PSScriptRoot/bin/Appx_$($env:CONFIGURATION)$($env:platform)" -Force -Recurse
 
   # Create appx package
-  & $makeappx pack /d "C:/projects/dependencies/bin/Appx_$($env:CONFIGURATION)$($env:platform)" /l /p "C:/projects/dependencies/bin/Appx_$($env:CONFIGURATION)$($env:platform).appx"
+  & $makeappx pack /d "$PSScriptRoot/bin/Appx_$($env:CONFIGURATION)$($env:platform)" /l /p "$PSScriptRoot/bin/Appx_$($env:CONFIGURATION)$($env:platform).appx"
 
   # Sign appx package
-  & $signtool sign /fd SHA256 /a /f "C:/projects/dependencies/DependenciesAppx/DependenciesAppx_TemporaryKey.pfx" "C:/projects/dependencies/bin/Appx_$($env:CONFIGURATION)$($env:platform).appx"
+  & $signtool sign /fd SHA256 /a /f "$PSScriptRoot/DependenciesAppx/DependenciesAppx_TemporaryKey.pfx" "$PSScriptRoot/bin/Appx_$($env:CONFIGURATION)$($env:platform).appx"
 }#>
